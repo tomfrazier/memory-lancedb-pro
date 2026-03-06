@@ -1,6 +1,5 @@
 /**
  * Tier Manager — Three-tier memory promotion/demotion system
- * Ported from memx-memory's tier lifecycle model.
  *
  * Tiers:
  * - Core (decay floor 0.9): Identity-level facts, almost never forgotten

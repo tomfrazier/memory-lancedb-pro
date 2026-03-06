@@ -1,7 +1,5 @@
 /**
  * Prompt templates for intelligent memory extraction.
- * Ported from epro-memory/prompts.ts (OpenViking origin).
- *
  * Three mandatory prompts:
  * - buildExtractionPrompt: 6-category L0/L1/L2 extraction with few-shot
  * - buildDedupPrompt: CREATE/MERGE/SKIP dedup decision

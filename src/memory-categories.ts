@@ -1,6 +1,5 @@
 /**
  * Memory Categories — 6-category classification system
- * Ported from epro-memory / OpenViking
  *
  * UserMemory: profile, preferences, entities, events
  * AgentMemory: cases, patterns

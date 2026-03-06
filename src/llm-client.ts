@@ -1,8 +1,6 @@
 /**
  * LLM Client for memory extraction and dedup decisions.
  * Uses OpenAI-compatible API (reuses the embedding provider config).
- *
- * Inspired by epro-memory/llm.ts
  */
 
 import OpenAI from "openai";

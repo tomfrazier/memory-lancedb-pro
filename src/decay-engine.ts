@@ -1,6 +1,5 @@
 /**
  * Decay Engine — Weibull stretched-exponential decay model
- * Ported from memx-memory/src/memory/decay.ts
  *
  * Composite score = recencyWeight * recency + frequencyWeight * frequency + intrinsicWeight * intrinsic
  *
@@ -213,7 +212,9 @@ export function createDecayEngine(
     applySearchBoost(results, now = Date.now()) {
       for (const r of results) {
         const ds = scoreOne(r.memory, now);
-        r.score *= Math.max(getTierFloor(r.memory.tier), ds.composite);
+        const tierFloor = Math.max(getTierFloor(r.memory.tier), ds.composite);
+        const multiplier = boostMin + ((1 - boostMin) * tierFloor);
+        r.score *= Math.min(1, Math.max(boostMin, multiplier));
       }
     },
 

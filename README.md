@@ -32,23 +32,26 @@ Hybrid Retrieval (Vector + BM25) · Cross-Encoder Rerank · Multi-Scope Isolatio
 
 The built-in `memory-lancedb` plugin in OpenClaw provides basic vector search. **memory-lancedb-pro** takes it much further:
 
-| Feature | Built-in `memory-lancedb` | **memory-lancedb-pro** |
-|---------|--------------------------|----------------------|
-| Vector search | ✅ | ✅ |
-| BM25 full-text search | ❌ | ✅ |
-| Hybrid fusion (Vector + BM25) | ❌ | ✅ |
-| Cross-encoder rerank (Jina / custom endpoint) | ❌ | ✅ |
-| Recency boost | ❌ | ✅ |
-| Time decay | ❌ | ✅ |
-| Length normalization | ❌ | ✅ |
-| MMR diversity | ❌ | ✅ |
-| Multi-scope isolation | ❌ | ✅ |
-| Noise filtering | ❌ | ✅ |
-| Adaptive retrieval | ❌ | ✅ |
-| Management CLI | ❌ | ✅ |
-| Session memory | ❌ | ✅ |
-| Task-aware embeddings | ❌ | ✅ |
-| Any OpenAI-compatible embedding | Limited | ✅ (OpenAI, Gemini, Jina, Ollama, etc.) |
+| Feature                                        | Built-in `memory-lancedb` | **memory-lancedb-pro**                  |
+| ---------------------------------------------- | ------------------------- | --------------------------------------- |
+| Vector search                                  | ✅                        | ✅                                      |
+| BM25 full-text search                          | ❌                        | ✅                                      |
+| Hybrid fusion (Vector + BM25)                  | ❌                        | ✅                                      |
+| Cross-encoder rerank (Jina / custom endpoint)  | ❌                        | ✅                                      |
+| Recency boost                                  | ❌                        | ✅                                      |
+| Time decay                                     | ❌                        | ✅                                      |
+| Length normalization                           | ❌                        | ✅                                      |
+| MMR diversity                                  | ❌                        | ✅                                      |
+| Multi-scope isolation                          | ❌                        | ✅                                      |
+| Noise filtering                                | ❌                        | ✅                                      |
+| Adaptive retrieval                             | ❌                        | ✅                                      |
+| Management CLI                                 | ❌                        | ✅                                      |
+| Session memory                                 | ❌                        | ✅                                      |
+| Task-aware embeddings                          | ❌                        | ✅                                      |
+| **LLM Smart Extraction (6-category L0/L1/L2)** | ❌                        | ✅ (v1.1.0)                             |
+| **Weibull Decay + Tier Promotion**             | ❌                        | ✅ (v1.1.0)                             |
+| **Legacy Memory Upgrade**                      | ❌                        | ✅ (v1.1.0)                             |
+| Any OpenAI-compatible embedding                | Limited                   | ✅ (OpenAI, Gemini, Jina, Ollama, etc.) |
 
 ---
 
@@ -154,26 +157,28 @@ To revert to stable: `npm i memory-lancedb-pro@latest`
 
 ### File Reference
 
-| File | Purpose |
-|------|---------|
-| `index.ts` | Plugin entry point. Registers with OpenClaw Plugin API, parses config, mounts `before_agent_start` (auto-recall), `agent_end` (auto-capture), and `command:new` (session memory) hooks |
-| `openclaw.plugin.json` | Plugin metadata + full JSON Schema config declaration (with `uiHints`) |
-| `package.json` | NPM package info. Depends on `@lancedb/lancedb`, `openai`, `@sinclair/typebox` |
-| `cli.ts` | CLI commands: `memory list/search/stats/delete/delete-bulk/export/import/reembed/migrate` |
-| `src/store.ts` | LanceDB storage layer. Table creation / FTS indexing / Vector search / BM25 search / CRUD / bulk delete / stats |
-| `src/embedder.ts` | Embedding abstraction. Compatible with any OpenAI-API provider (OpenAI, Gemini, Jina, Ollama, etc.). Supports task-aware embedding (`taskQuery`/`taskPassage`) |
-| `src/retriever.ts` | Hybrid retrieval engine. Vector + BM25 → RRF fusion → Jina Cross-Encoder Rerank → Recency Boost → Importance Weight → Length Norm → Time Decay → Hard Min Score → Noise Filter → MMR Diversity |
-| `src/scopes.ts` | Multi-scope access control. Supports `global`, `agent:<id>`, `custom:<name>`, `project:<id>`, `user:<id>` |
-| `src/tools.ts` | Agent tool definitions: `memory_recall`, `memory_store`, `memory_forget` (core) + `memory_stats`, `memory_list` (management) |
-| `src/noise-filter.ts` | Noise filter. Filters out agent refusals, meta-questions, greetings, and low-quality content |
-| `src/adaptive-retrieval.ts` | Adaptive retrieval. Determines whether a query needs memory retrieval (skips greetings, slash commands, simple confirmations, emoji) |
-| `src/migrate.ts` | Migration tool. Migrates data from the built-in `memory-lancedb` plugin to Pro |
-| `src/smart-extractor.ts` | *(Beta)* LLM-powered 6-category extraction pipeline with L0/L1/L2 layered storage |
-| `src/extraction-prompts.ts` | *(Beta)* Prompt templates for memory extraction, dedup decisions, and merge |
-| `src/llm-client.ts` | *(Beta)* OpenAI-compatible LLM client wrapper with JSON fence parsing |
-| `src/memory-categories.ts` | *(Beta)* 6-category classification (profile, preferences, entities, events, cases, patterns) |
-| `src/decay-engine.ts` | *(Beta)* Weibull decay model with importance-modulated half-life and tier-specific beta |
-| `src/tier-manager.ts` | *(Beta)* Three-tier (Core/Working/Peripheral) promotion/demotion lifecycle manager |
+| File                        | Purpose                                                                                                                                                                                        |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.ts`                  | Plugin entry point. Registers with OpenClaw Plugin API, parses config, mounts `before_agent_start` (auto-recall), `agent_end` (auto-capture), and `command:new` (session memory) hooks         |
+| `openclaw.plugin.json`      | Plugin metadata + full JSON Schema config declaration (with `uiHints`)                                                                                                                         |
+| `package.json`              | NPM package info. Depends on `@lancedb/lancedb`, `openai`, `@sinclair/typebox`                                                                                                                 |
+| `cli.ts`                    | CLI commands: `memory list/search/stats/delete/delete-bulk/export/import/reembed/upgrade/migrate`                                                                                              |
+| `src/store.ts`              | LanceDB storage layer. Table creation / FTS indexing / Vector search / BM25 search / CRUD / bulk delete / stats                                                                                |
+| `src/embedder.ts`           | Embedding abstraction. Compatible with any OpenAI-API provider (OpenAI, Gemini, Jina, Ollama, etc.). Supports task-aware embedding (`taskQuery`/`taskPassage`)                                 |
+| `src/retriever.ts`          | Hybrid retrieval engine. Vector + BM25 → RRF fusion → Jina Cross-Encoder Rerank → lifecycle decay boost → Length Norm → Hard Min Score → Noise Filter → MMR Diversity                            |
+| `src/scopes.ts`             | Multi-scope access control. Supports `global`, `agent:<id>`, `custom:<name>`, `project:<id>`, `user:<id>`                                                                                      |
+| `src/tools.ts`              | Agent tool definitions: `memory_recall`, `memory_store`, `memory_forget` (core) + `memory_stats`, `memory_list` (management)                                                                   |
+| `src/noise-filter.ts`       | Noise filter. Filters out agent refusals, meta-questions, greetings, and low-quality content                                                                                                   |
+| `src/adaptive-retrieval.ts` | Adaptive retrieval. Determines whether a query needs memory retrieval (skips greetings, slash commands, simple confirmations, emoji)                                                           |
+| `src/migrate.ts`            | Migration tool. Migrates data from the built-in `memory-lancedb` plugin to Pro                                                                                                                 |
+| `src/smart-extractor.ts`    | **(v1.1.0)** LLM-powered 6-category extraction pipeline with L0/L1/L2 layered storage and two-stage dedup                                                                                      |
+| `src/memory-categories.ts`  | **(v1.1.0)** 6-category classification system: profile, preferences, entities, events, cases, patterns                                                                                         |
+| `src/decay-engine.ts`       | **(v1.1.0)** Weibull stretched-exponential decay model with tier-specific decay shapes                                                                                                         |
+| `src/tier-manager.ts`       | **(v1.1.0)** Three-tier promotion/demotion system: Peripheral ⟷ Working ⟷ Core                                                                                                                 |
+| `src/memory-upgrader.ts`    | **(v1.1.0)** Batch upgrade legacy memories to new smart format (L0/L1/L2 + 6-category)                                                                                                         |
+| `src/llm-client.ts`         | **(v1.1.0)** LLM client for structured JSON output (reuses existing OpenAI SDK)                                                                                                                |
+| `src/extraction-prompts.ts` | **(v1.1.0)** LLM prompt templates for extraction, dedup, and merge                                                                                                                             |
+| `src/smart-metadata.ts`     | **(v1.1.0)** Metadata normalization helper for L0/L1/L2, tier, confidence, access counters, and lifecycle fields                                                                              |
 
 ---
 
@@ -183,7 +188,7 @@ To revert to stable: `npm i memory-lancedb-pro@latest`
 
 ```
 Query → embedQuery() ─┐
-                       ├─→ RRF Fusion → Rerank → Recency Boost → Importance Weight → Filter
+                       ├─→ RRF Fusion → Rerank → Lifecycle Decay Boost → Length Norm → Filter
 Query → BM25 FTS ─────┘
 ```
 
@@ -200,14 +205,17 @@ Query → BM25 FTS ─────┘
 
 ### 3. Multi-Stage Scoring Pipeline
 
-| Stage | Formula | Effect |
-|-------|---------|--------|
-| **Recency Boost** | `exp(-ageDays / halfLife) * weight` | Newer memories score higher (default: 14-day half-life, 0.10 weight) |
-| **Importance Weight** | `score *= (0.7 + 0.3 * importance)` | importance=1.0 → ×1.0, importance=0.5 → ×0.85 |
+| Stage | Formula / Logic | Effect |
+| ----- | --------------- | ------ |
+| **RRF Fusion** | Vector + BM25 reciprocal-rank fusion | Combines semantic and exact-match recall |
+| **Cross-Encoder Rerank** | 60% rerank score + 40% fused score | Promotes semantically precise hits |
+| **Lifecycle Decay Boost** | `composite = recency + frequency + intrinsic` | Uses Weibull freshness, access frequency, and `importance × confidence` |
 | **Length Normalization** | `score *= 1 / (1 + 0.5 * log2(len/anchor))` | Prevents long entries from dominating (anchor: 500 chars) |
-| **Time Decay** | `score *= 0.5 + 0.5 * exp(-ageDays / halfLife)` | Old entries gradually lose weight, floor at 0.5× (60-day half-life) |
 | **Hard Min Score** | Discard if `score < threshold` | Removes irrelevant results (default: 0.35) |
 | **MMR Diversity** | Cosine similarity > 0.85 → demoted | Prevents near-duplicate results |
+
+Legacy fallback:
+- When lifecycle decay is unavailable, the retriever falls back to the older `Recency Boost → Importance Weight → Time Decay` path.
 
 ### 4. Multi-Scope Isolation
 
@@ -224,6 +232,7 @@ Query → BM25 FTS ─────┘
 ### 6. Noise Filtering
 
 Filters out low-quality content at both auto-capture and tool-store stages:
+
 - Agent refusal responses ("I don't have any information")
 - Meta-questions ("do you remember")
 - Greetings ("hi", "hello", "HEARTBEAT")
@@ -234,11 +243,36 @@ Filters out low-quality content at both auto-capture and tool-store stages:
 - Disabled by default (OpenClaw already has native `.jsonl` session persistence)
 - Configurable message count (default: 15)
 
+See `docs/openclaw-integration-playbook.md` for deployment modes, `/new` verification, fresh-agent bootstrap checks, and the recommended regression matrix.
+
 ### 8. Auto-Capture & Auto-Recall
 
 - **Auto-Capture** (`agent_end` hook): Extracts preference/fact/decision/entity from conversations, deduplicates, stores up to 3 per turn
   - Skips memory-management prompts (e.g. delete/forget/cleanup memory entries) to reduce noise
 - **Auto-Recall** (`before_agent_start` hook): Injects `<relevant-memories>` context (up to 3 entries)
+
+### 9. Smart Memory Extraction (v1.1.0)
+
+- **LLM-Powered 6-Category Extraction**: Replaces regex-triggered capture with intelligent classification:
+  - **UserMemory**: `profile` (identity), `preferences` (habits), `entities` (persistent objects), `events` (happenings)
+  - **AgentMemory**: `cases` (problem-solution pairs), `patterns` (reusable workflows)
+- **L0/L1/L2 Layered Storage**: L0 (one-sentence index) → L1 (structured summary) → L2 (full narrative)
+- **Two-Stage Dedup**: Vector similarity pre-filter (≥0.7) → LLM semantic decision (CREATE/MERGE/SKIP)
+- **Category-Aware Merge**: `profile` always merges, `events`/`cases` are append-only
+
+### 10. Memory Lifecycle Management (v1.1.0)
+
+- **Weibull Decay Engine**: Composite score = recency (Weibull) + frequency (log-saturated) + intrinsic (importance × confidence)
+- **Decay-Aware Retrieval**: recall results are re-ranked by lifecycle decay instead of leaving the decay engine disconnected
+- **Three-Tier Promotion**: `Peripheral ⟷ Working ⟷ Core` with configurable thresholds and live recall counters
+- **Importance-Modulated Half-Life**: Important memories decay slower
+- **Unified Metadata Writes**: smart extraction, regex fallback, `memory_store`, migration, session memory, and upgrade all normalize metadata into the same lifecycle format
+
+### 11. Legacy Memory Upgrade (v1.1.0)
+
+- **One-Command Upgrade**: Convert old-format memories to new 6-category L0/L1/L2 format
+- **LLM or No-LLM Mode**: Use LLM for high-quality enrichment, or simple text truncation for offline use
+- **Startup Detection**: Plugin automatically detects legacy memories and logs upgrade suggestion
 
 ### Prevent memories from showing up in replies
 
@@ -285,9 +319,105 @@ openclaw config get plugins.entries.memory-lancedb-pro
 ```
 
 Recommendations:
+
 - Prefer **absolute paths** in `plugins.load.paths` unless you have confirmed the active workspace.
 - If you use `${JINA_API_KEY}` (or any `${...}` variable) in config, ensure the **Gateway service process** has that environment variable (system services often do **not** inherit your interactive shell env).
 - After changing plugin config, run `openclaw gateway restart`.
+
+For a generic operator checklist covering first-time setup, retrieval tuning, `/new` session-memory behavior, and post-upgrade verification, see `docs/openclaw-integration-playbook.md`.
+
+### Which path applies to you?
+
+Pick the path that matches your current state. Do not mix `migrate`, `upgrade`, and `reembed` without a specific reason.
+
+#### Path A — New to OpenClaw or setting up memory for the first time
+
+1. Install the plugin and bind `plugins.slots.memory` to `memory-lancedb-pro`
+2. Start with a minimal config (`embedding` + optional `smartExtraction`)
+3. Run:
+
+```bash
+openclaw config validate
+openclaw gateway restart
+openclaw plugins info memory-lancedb-pro
+openclaw hooks list --json
+openclaw memory-pro stats
+```
+
+4. Perform one real smoke test:
+   - store one memory
+   - search by one exact identifier
+   - search by one natural-language sentence
+
+Recommended: keep session memory disabled until basic retrieval is stable.
+
+#### Path B — Already using OpenClaw, adding this plugin later
+
+1. Keep your existing agents, channels, and models unchanged
+2. Add the plugin with an **absolute** `plugins.load.paths` entry
+3. Bind the memory slot to `memory-lancedb-pro`
+4. Choose your session-summary mode explicitly:
+   - built-in only
+   - plugin only
+   - dual write
+5. Verify:
+
+```bash
+openclaw plugins info memory-lancedb-pro
+openclaw hooks list --json
+openclaw memory-pro stats
+```
+
+If a newly added agent cannot complete a plain text turn, fix agent bootstrap first before testing memory behavior.
+
+#### Path C — Already used an older `memory-lancedb-pro` before v1.1.0
+
+The command boundaries are:
+
+- `upgrade` for **older `memory-lancedb-pro` data**
+- `migrate` only when coming from built-in **`memory-lancedb`**
+- `reembed` only when you intentionally rebuild embeddings from a different source DB or after an embedding-model change
+
+Safe sequence:
+
+```bash
+# 1) back up existing memories first
+openclaw memory-pro export --scope global --output memories-backup.json
+
+# 2) inspect legacy records without modifying data
+openclaw memory-pro upgrade --dry-run
+
+# 3) run the upgrade
+openclaw memory-pro upgrade
+
+# 4) verify retrieval still works
+openclaw memory-pro stats
+openclaw memory-pro search "your known keyword" --scope global --limit 5
+```
+
+If you still have old built-in `memory-lancedb` data that was never moved into Pro, run `migrate check` / `migrate run` separately. Do not treat that as the same step as upgrading older Pro data.
+
+#### Post-upgrade reliability checklist
+
+After any path above, verify all of the following before changing thresholds:
+
+```bash
+openclaw config validate
+openclaw gateway restart
+openclaw plugins info memory-lancedb-pro
+openclaw hooks list --json
+openclaw memory-pro stats
+openclaw memory-pro list --scope global --limit 5
+```
+
+Then validate:
+
+- one exact-id search hit
+- one natural-language search hit
+- one `memory_store` → `memory_recall` round trip
+- if session memory is enabled, one real `/new` test
+
+For the v1.1.0 behavior changes and upgrade rationale, see `CHANGELOG-v1.1.0.md`.
 
 ### Jina API keys (embedding + rerank)
 
@@ -296,6 +426,7 @@ Recommendations:
 - If you use a different rerank provider (`siliconflow`, `pinecone`, etc.), `retrieval.rerankApiKey` should be that provider’s key.
 
 Key storage guidance:
+
 - Avoid committing secrets into git.
 - Using `${...}` env vars is fine, but make sure the **Gateway service process** has those env vars (system services often do not inherit your interactive shell environment).
 
@@ -378,20 +509,20 @@ openclaw gateway restart
 
 ### Verify installation (recommended)
 
-1) Confirm the plugin is discoverable/loaded:
+1. Confirm the plugin is discoverable/loaded:
 
 ```bash
 openclaw plugins list
 openclaw plugins info memory-lancedb-pro
 ```
 
-2) If anything looks wrong, run the built-in diagnostics:
+2. If anything looks wrong, run the built-in diagnostics:
 
 ```bash
 openclaw plugins doctor
 ```
 
-3) Confirm the memory slot points to this plugin:
+3. Confirm the memory slot points to this plugin:
 
 ```bash
 # Look for: plugins.slots.memory = "memory-lancedb-pro"
@@ -453,7 +584,15 @@ openclaw config get plugins.slots.memory
   "sessionMemory": {
     "enabled": false,
     "messageCount": 15
-  }
+  },
+  "smartExtraction": true,
+  "llm": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "openai/gpt-oss-120b",
+    "baseURL": "https://api.openai.com/v1"
+  },
+  "extractMinMessages": 4,
+  "extractMaxChars": 8000
 }
 ```
 
@@ -474,25 +613,26 @@ Notes:
 
 This plugin works with **any OpenAI-compatible embedding API**:
 
-| Provider | Model | Base URL | Dimensions |
-|----------|-------|----------|------------|
-| **Jina** (recommended) | `jina-embeddings-v5-text-small` | `https://api.jina.ai/v1` | 1024 |
-| **OpenAI** | `text-embedding-3-small` | `https://api.openai.com/v1` | 1536 |
-| **Google Gemini** | `gemini-embedding-001` | `https://generativelanguage.googleapis.com/v1beta/openai/` | 3072 |
-| **Ollama** (local) | `nomic-embed-text` | `http://localhost:11434/v1` | _provider-specific_ (set `embedding.dimensions` to match your Ollama model output) |
+| Provider               | Model                           | Base URL                                                   | Dimensions                                                                         |
+| ---------------------- | ------------------------------- | ---------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| **Jina** (recommended) | `jina-embeddings-v5-text-small` | `https://api.jina.ai/v1`                                   | 1024                                                                               |
+| **OpenAI**             | `text-embedding-3-small`        | `https://api.openai.com/v1`                                | 1536                                                                               |
+| **Google Gemini**      | `gemini-embedding-001`          | `https://generativelanguage.googleapis.com/v1beta/openai/` | 3072                                                                               |
+| **Ollama** (local)     | `nomic-embed-text`              | `http://localhost:11434/v1`                                | _provider-specific_ (set `embedding.dimensions` to match your Ollama model output) |
 
 ### Rerank Providers
 
 Cross-encoder reranking supports multiple providers via `rerankProvider`:
 
-| Provider | `rerankProvider` | Endpoint | Example Model |
-|----------|-----------------|----------|---------------|
-| **Jina** (default) | `jina` | `https://api.jina.ai/v1/rerank` | `jina-reranker-v3` |
-| **SiliconFlow** (free tier available) | `siliconflow` | `https://api.siliconflow.com/v1/rerank` | `BAAI/bge-reranker-v2-m3`, `Qwen/Qwen3-Reranker-8B` |
-| **Voyage AI** | `voyage` | `https://api.voyageai.com/v1/rerank` | `rerank-2.5` |
-| **Pinecone** | `pinecone` | `https://api.pinecone.io/rerank` | `bge-reranker-v2-m3` |
+| Provider                              | `rerankProvider` | Endpoint                                | Example Model                                       |
+| ------------------------------------- | ---------------- | --------------------------------------- | --------------------------------------------------- |
+| **Jina** (default)                    | `jina`           | `https://api.jina.ai/v1/rerank`         | `jina-reranker-v3`                                  |
+| **SiliconFlow** (free tier available) | `siliconflow`    | `https://api.siliconflow.com/v1/rerank` | `BAAI/bge-reranker-v2-m3`, `Qwen/Qwen3-Reranker-8B` |
+| **Voyage AI**                         | `voyage`         | `https://api.voyageai.com/v1/rerank`    | `rerank-2.5`                                        |
+| **Pinecone**                          | `pinecone`       | `https://api.pinecone.io/rerank`        | `bge-reranker-v2-m3`                                |
 
 Notes:
+
 - `voyage` sends `{ model, query, documents }` without `top_n`.
 - Voyage responses are parsed from `data[].relevance_score`.
 
@@ -547,6 +687,100 @@ Notes:
 
 </details>
 
+### Smart Extraction (LLM) — v1.1.0
+
+When `smartExtraction` is enabled (default: `true`), the plugin uses an LLM to intelligently extract and classify memories instead of regex-based triggers.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `smartExtraction` | boolean | `true` | Enable/disable LLM-powered 6-category extraction |
+| `llm.apiKey` | string | *(falls back to `embedding.apiKey`)* | API key for the LLM provider |
+| `llm.model` | string | `openai/gpt-oss-120b` | LLM model name |
+| `llm.baseURL` | string | *(falls back to `embedding.baseURL`)* | LLM API endpoint |
+| `extractMinMessages` | number | `4` | Minimum messages in a conversation before extraction triggers |
+| `extractMaxChars` | number | `8000` | Maximum characters sent to the LLM for extraction |
+
+<details>
+<summary><strong>Minimal Config (reuses embedding API key)</strong></summary>
+
+```json
+{
+  "embedding": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "text-embedding-3-small"
+  },
+  "smartExtraction": true
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Full Config (separate LLM endpoint)</strong></summary>
+
+```json
+{
+  "embedding": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "text-embedding-3-small"
+  },
+  "smartExtraction": true,
+  "llm": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "openai/gpt-oss-120b",
+    "baseURL": "https://api.openai.com/v1"
+  },
+  "extractMinMessages": 4,
+  "extractMaxChars": 8000
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Disable Smart Extraction (fall back to regex)</strong></summary>
+
+```json
+{
+  "smartExtraction": false
+}
+```
+
+</details>
+
+---
+
+### Lifecycle Configuration (Decay + Tier)
+
+These settings control freshness ranking and automatic tier transitions.
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `decay.recencyHalfLifeDays` | number | `30` | Base half-life for Weibull recency decay |
+| `decay.frequencyWeight` | number | `0.3` | Weight of access frequency in composite lifecycle score |
+| `decay.intrinsicWeight` | number | `0.3` | Weight of `importance × confidence` in lifecycle score |
+| `decay.betaCore` | number | `0.8` | Weibull beta for `core` memories |
+| `decay.betaWorking` | number | `1.0` | Weibull beta for `working` memories |
+| `decay.betaPeripheral` | number | `1.3` | Weibull beta for `peripheral` memories |
+| `tier.coreAccessThreshold` | number | `10` | Minimum recall count before promoting to `core` |
+| `tier.coreCompositeThreshold` | number | `0.7` | Minimum lifecycle score before promoting to `core` |
+| `tier.peripheralCompositeThreshold` | number | `0.15` | Below this score a `working` memory may demote |
+| `tier.peripheralAgeDays` | number | `60` | Age threshold for demoting stale low-access memories |
+
+```json
+{
+  "decay": {
+    "recencyHalfLifeDays": 21,
+    "betaCore": 0.7,
+    "betaPeripheral": 1.5
+  },
+  "tier": {
+    "coreAccessThreshold": 8,
+    "peripheralAgeDays": 45
+  }
+}
+```
+
 ---
 
 ## Optional: JSONL Session Distillation (Auto-memories from chat logs)
@@ -567,16 +801,17 @@ Instead, **recommended (2026-02+)** is a **non-blocking `/new` pipeline**:
 - Notify: optional Telegram/Discord notification (even if 0 lessons)
 
 See the self-contained example files in:
+
 - `examples/new-session-distill/`
 
 ---
 
 Legacy option: an **hourly distiller** cron that:
 
-1) Incrementally reads only the **newly appended tail** of each session JSONL (byte-offset cursor)
-2) Filters noise (tool output, injected `<relevant-memories>`, logs, boilerplate)
-3) Uses a dedicated agent to **distill** reusable lessons / rules / preferences into short atomic memories
-4) Stores them via `memory_store` into the right **scope** (`global` or `agent:<agentId>`)
+1. Incrementally reads only the **newly appended tail** of each session JSONL (byte-offset cursor)
+2. Filters noise (tool output, injected `<relevant-memories>`, logs, boilerplate)
+3. Uses a dedicated agent to **distill** reusable lessons / rules / preferences into short atomic memories
+4. Stores them via `memory_store` into the right **scope** (`global` or `agent:<agentId>`)
 
 ### What you get
 
@@ -729,10 +964,13 @@ openclaw memory-pro delete-bulk --scope global [--before 2025-01-01] [--dry-run]
 openclaw memory-pro export [--scope global] [--output memories.json]
 openclaw memory-pro import memories.json [--scope global] [--dry-run]
 
-# Re-embed all entries with a new model
+# Re-embed all entries after an embedding-model change or from a different source DB
 openclaw memory-pro reembed --source-db /path/to/old-db [--batch-size 32] [--skip-existing]
 
-# Migrate from built-in memory-lancedb
+# Upgrade legacy memories to new smart format (v1.1.0)
+openclaw memory-pro upgrade [--dry-run] [--batch-size 10] [--no-llm] [--limit N] [--scope SCOPE]
+
+# Migrate from built-in memory-lancedb (not from older memory-lancedb-pro)
 openclaw memory-pro migrate check [--source /path]
 openclaw memory-pro migrate run [--source /path] [--dry-run] [--skip-existing]
 openclaw memory-pro migrate verify [--source /path]
@@ -750,7 +988,9 @@ Add this to your `CLAUDE.md`, `AGENTS.md`, or system prompt:
 
 ```markdown
 ## /lesson command
+
 When the user sends `/lesson <content>`:
+
 1. Use memory_store to save as category=fact (the raw knowledge)
 2. Use memory_store to save as category=decision (actionable takeaway)
 3. Confirm what was saved
@@ -760,19 +1000,21 @@ When the user sends `/lesson <content>`:
 
 ```markdown
 ## /remember command
+
 When the user sends `/remember <content>`:
+
 1. Use memory_store to save with appropriate category and importance
 2. Confirm with the stored memory ID
 ```
 
 ### Built-in Tools Reference
 
-| Tool | Description |
-|------|-------------|
-| `memory_store` | Store a memory (supports category, importance, scope) |
-| `memory_recall` | Search memories (hybrid vector + BM25 retrieval) |
-| `memory_forget` | Delete a memory by ID or search query |
-| `memory_update` | Update an existing memory in-place |
+| Tool            | Description                                           |
+| --------------- | ----------------------------------------------------- |
+| `memory_store`  | Store a memory (supports category, importance, scope) |
+| `memory_recall` | Search memories (hybrid vector + BM25 retrieval)      |
+| `memory_forget` | Delete a memory by ID or search query                 |
+| `memory_update` | Update an existing memory in-place                    |
 
 > **Note**: These tools are registered automatically when the plugin loads. Custom commands like `/lesson` are not built into the plugin — they are defined at the Agent/system-prompt level and simply call these tools.
 
@@ -782,16 +1024,25 @@ When the user sends `/remember <content>`:
 
 LanceDB table `memories`:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string (UUID) | Primary key |
-| `text` | string | Memory text (FTS indexed) |
-| `vector` | float[] | Embedding vector |
-| `category` | string | `preference` / `fact` / `decision` / `entity` / `other` |
-| `scope` | string | Scope identifier (e.g., `global`, `agent:main`) |
-| `importance` | float | Importance score 0–1 |
-| `timestamp` | int64 | Creation timestamp (ms) |
-| `metadata` | string (JSON) | Extended metadata |
+| Field        | Type          | Description                                             |
+| ------------ | ------------- | ------------------------------------------------------- |
+| `id`         | string (UUID) | Primary key                                             |
+| `text`       | string        | Memory text (FTS indexed)                               |
+| `vector`     | float[]       | Embedding vector                                        |
+| `category`   | string        | `preference` / `fact` / `decision` / `entity` / `other` |
+| `scope`      | string        | Scope identifier (e.g., `global`, `agent:main`)         |
+| `importance` | float         | Importance score 0–1                                    |
+| `timestamp`  | int64         | Creation timestamp (ms)                                 |
+| `metadata`   | string (JSON) | Extended metadata                                       |
+
+Common `metadata` keys in v1.1.0:
+
+- `l0_abstract`, `l1_overview`, `l2_content`
+- `memory_category`
+- `tier`
+- `access_count`
+- `confidence`
+- `last_accessed_at`
 
 ---
 
@@ -852,10 +1103,10 @@ Config-only changes do NOT need cache clearing.
 
 ## Dependencies
 
-| Package | Purpose |
-|---------|---------|
-| `@lancedb/lancedb` ≥0.26.2 | Vector database (ANN + FTS) |
-| `openai` ≥6.21.0 | OpenAI-compatible Embedding API client |
+| Package                     | Purpose                                        |
+| --------------------------- | ---------------------------------------------- |
+| `@lancedb/lancedb` ≥0.26.2  | Vector database (ANN + FTS)                    |
+| `openai` ≥6.21.0            | OpenAI-compatible Embedding API client         |
 | `@sinclair/typebox` 0.34.48 | JSON Schema type definitions (tool parameters) |
 
 ---

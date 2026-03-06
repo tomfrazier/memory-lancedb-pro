@@ -32,23 +32,26 @@
 
 OpenClaw 内置的 `memory-lancedb` 插件仅提供基本的向量搜索。**memory-lancedb-pro** 在此基础上进行了全面升级：
 
-| 功能 | 内置 `memory-lancedb` | **memory-lancedb-pro** |
-|------|----------------------|----------------------|
-| 向量搜索 | ✅ | ✅ |
-| BM25 全文检索 | ❌ | ✅ |
-| 混合融合（Vector + BM25） | ❌ | ✅ |
-| 跨编码器 Rerank（Jina） | ❌ | ✅ |
-| 时效性加成 | ❌ | ✅ |
-| 时间衰减 | ❌ | ✅ |
-| 长度归一化 | ❌ | ✅ |
-| MMR 多样性去重 | ❌ | ✅ |
-| 多 Scope 隔离 | ❌ | ✅ |
-| 噪声过滤 | ❌ | ✅ |
-| 自适应检索 | ❌ | ✅ |
-| 管理 CLI | ❌ | ✅ |
-| Session 记忆 | ❌ | ✅ |
-| Task-aware Embedding | ❌ | ✅ |
-| 任意 OpenAI 兼容 Embedding | 有限 | ✅（OpenAI、Gemini、Jina、Ollama 等） |
+| 功能                                | 内置 `memory-lancedb` | **memory-lancedb-pro**                |
+| ----------------------------------- | --------------------- | ------------------------------------- |
+| 向量搜索                            | ✅                    | ✅                                    |
+| BM25 全文检索                       | ❌                    | ✅                                    |
+| 混合融合（Vector + BM25）           | ❌                    | ✅                                    |
+| 跨编码器 Rerank（Jina）             | ❌                    | ✅                                    |
+| 时效性加成                          | ❌                    | ✅                                    |
+| 时间衰减                            | ❌                    | ✅                                    |
+| 长度归一化                          | ❌                    | ✅                                    |
+| MMR 多样性去重                      | ❌                    | ✅                                    |
+| 多 Scope 隔离                       | ❌                    | ✅                                    |
+| 噪声过滤                            | ❌                    | ✅                                    |
+| 自适应检索                          | ❌                    | ✅                                    |
+| 管理 CLI                            | ❌                    | ✅                                    |
+| Session 记忆                        | ❌                    | ✅                                    |
+| Task-aware Embedding                | ❌                    | ✅                                    |
+| **LLM 智能提取（6 类别 L0/L1/L2）** | ❌                    | ✅（v1.1.0）                          |
+| **Weibull 衰减 + 三层晋升**         | ❌                    | ✅（v1.1.0）                          |
+| **旧记忆一键升级**                  | ❌                    | ✅（v1.1.0）                          |
+| 任意 OpenAI 兼容 Embedding          | 有限                  | ✅（OpenAI、Gemini、Jina、Ollama 等） |
 
 ---
 
@@ -154,26 +157,28 @@ npm i memory-lancedb-pro@1.1.0-beta.1
 
 ### 文件说明
 
-| 文件 | 用途 |
-|------|------|
-| `index.ts` | 插件入口。注册到 OpenClaw Plugin API，解析配置，挂载 `before_agent_start`（自动回忆）、`agent_end`（自动捕获）、`command:new`（Session 记忆）等钩子 |
-| `openclaw.plugin.json` | 插件元数据 + 完整 JSON Schema 配置声明（含 `uiHints`） |
-| `package.json` | NPM 包信息，依赖 `@lancedb/lancedb`、`openai`、`@sinclair/typebox` |
-| `cli.ts` | CLI 命令实现：`memory list/search/stats/delete/delete-bulk/export/import/reembed/migrate` |
-| `src/store.ts` | LanceDB 存储层。表创建 / FTS 索引 / Vector Search / BM25 Search / CRUD / 批量删除 / 统计 |
-| `src/embedder.ts` | Embedding 抽象层。兼容 OpenAI API 的任意 Provider（OpenAI、Gemini、Jina、Ollama 等），支持 task-aware embedding（`taskQuery`/`taskPassage`） |
-| `src/retriever.ts` | 混合检索引擎。Vector + BM25 → RRF 融合 → Jina Cross-Encoder Rerank → Recency Boost → Importance Weight → Length Norm → Time Decay → Hard Min Score → Noise Filter → MMR Diversity |
-| `src/scopes.ts` | 多 Scope 访问控制。支持 `global`、`agent:<id>`、`custom:<name>`、`project:<id>`、`user:<id>` 等 Scope 模式 |
-| `src/tools.ts` | Agent 工具定义：`memory_recall`、`memory_store`、`memory_forget`（核心）+ `memory_stats`、`memory_list`（管理） |
-| `src/noise-filter.ts` | 噪声过滤器。过滤 Agent 拒绝回复、Meta 问题、寒暄等低质量记忆 |
-| `src/adaptive-retrieval.ts` | 自适应检索。判断 query 是否需要触发记忆检索（跳过问候、命令、简单确认等） |
-| `src/migrate.ts` | 迁移工具。从旧版 `memory-lancedb` 插件迁移数据到 Pro 版 |
-| `src/smart-extractor.ts` | *(Beta)* LLM 驱动的 6 类别提取管线，L0/L1/L2 分层存储 |
-| `src/extraction-prompts.ts` | *(Beta)* 记忆提取、去重决策和合并的提示词模板 |
-| `src/llm-client.ts` | *(Beta)* OpenAI 兼容 LLM 客户端封装，含 JSON 围栏解析 |
-| `src/memory-categories.ts` | *(Beta)* 6 类别分类（profile、preferences、entities、events、cases、patterns） |
-| `src/decay-engine.ts` | *(Beta)* Weibull 衰减模型，重要性调制半衰期 + 分层 beta |
-| `src/tier-manager.ts` | *(Beta)* 三层（Core/Working/Peripheral）晋升/降级生命周期管理器 |
+| 文件                        | 用途                                                                                                                                                                              |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `index.ts`                  | 插件入口。注册到 OpenClaw Plugin API，解析配置，挂载 `before_agent_start`（自动回忆）、`agent_end`（自动捕获）、`command:new`（Session 记忆）等钩子                               |
+| `openclaw.plugin.json`      | 插件元数据 + 完整 JSON Schema 配置声明（含 `uiHints`）                                                                                                                            |
+| `package.json`              | NPM 包信息，依赖 `@lancedb/lancedb`、`openai`、`@sinclair/typebox`                                                                                                                |
+| `cli.ts`                    | CLI 命令实现：`memory list/search/stats/delete/delete-bulk/export/import/reembed/upgrade/migrate`                                                                                 |
+| `src/store.ts`              | LanceDB 存储层。表创建 / FTS 索引 / Vector Search / BM25 Search / CRUD / 批量删除 / 统计                                                                                          |
+| `src/embedder.ts`           | Embedding 抽象层。兼容 OpenAI API 的任意 Provider（OpenAI、Gemini、Jina、Ollama 等），支持 task-aware embedding（`taskQuery`/`taskPassage`）                                      |
+| `src/retriever.ts`          | 混合检索引擎。Vector + BM25 → RRF 融合 → Jina Cross-Encoder Rerank → 生命周期衰减加权 → Length Norm → Hard Min Score → Noise Filter → MMR Diversity                                 |
+| `src/scopes.ts`             | 多 Scope 访问控制。支持 `global`、`agent:<id>`、`custom:<name>`、`project:<id>`、`user:<id>` 等 Scope 模式                                                                        |
+| `src/tools.ts`              | Agent 工具定义：`memory_recall`、`memory_store`、`memory_forget`（核心）+ `memory_stats`、`memory_list`（管理）                                                                   |
+| `src/noise-filter.ts`       | 噪声过滤器。过滤 Agent 拒绝回复、Meta 问题、寒暄等低质量记忆                                                                                                                      |
+| `src/adaptive-retrieval.ts` | 自适应检索。判断 query 是否需要触发记忆检索（跳过问候、命令、简单确认等）                                                                                                         |
+| `src/migrate.ts`            | 迁移工具。从旧版 `memory-lancedb` 插件迁移数据到 Pro 版                                                                                                                           |
+| `src/smart-extractor.ts`    | **（v1.1.0）** LLM 驱动的 6 类别提取管线，含 L0/L1/L2 分层存储和两阶段去重                                                                                                        |
+| `src/memory-categories.ts`  | **（v1.1.0）** 6 类别分类系统：profile、preferences、entities、events、cases、patterns                                                                                            |
+| `src/decay-engine.ts`       | **（v1.1.0）** Weibull 拉伸指数衰减模型，支持层级特定衰减形状                                                                                                                     |
+| `src/tier-manager.ts`       | **（v1.1.0）** 三层晋升/降级系统：Peripheral ⟷ Working ⟷ Core                                                                                                                     |
+| `src/memory-upgrader.ts`    | **（v1.1.0）** 旧记忆批量升级为新智能格式（L0/L1/L2 + 6 类别）                                                                                                                    |
+| `src/llm-client.ts`         | **（v1.1.0）** LLM 客户端，用于结构化 JSON 输出（复用现有 OpenAI SDK）                                                                                                            |
+| `src/extraction-prompts.ts` | **（v1.1.0）** 记忆提取、去重、合并的 LLM 提示模板                                                                                                                                |
+| `src/smart-metadata.ts`     | **（v1.1.0）** Smart metadata 归一化助手，统一 L0/L1/L2、tier、confidence、access 计数与生命周期字段                                                                           |
 
 ---
 
@@ -183,7 +188,7 @@ npm i memory-lancedb-pro@1.1.0-beta.1
 
 ```
 Query → embedQuery() ─┐
-                       ├─→ RRF 融合 → Rerank → 时效加成 → 重要性加权 → 过滤
+                       ├─→ RRF 融合 → Rerank → 生命周期衰减加权 → 长度归一化 → 过滤
 Query → BM25 FTS ─────┘
 ```
 
@@ -200,14 +205,17 @@ Query → BM25 FTS ─────┘
 
 ### 3. 多层评分管线
 
-| 阶段 | 公式 | 效果 |
-|------|------|------|
-| **时效加成** | `exp(-ageDays / halfLife) * weight` | 新记忆分数更高（默认半衰期 14 天，权重 0.10） |
-| **重要性加权** | `score *= (0.7 + 0.3 * importance)` | importance=1.0 → ×1.0，importance=0.5 → ×0.85 |
+| 阶段 | 公式 / 逻辑 | 效果 |
+| ---- | ----------- | ---- |
+| **RRF 融合** | Vector + BM25 倒数排名融合 | 同时结合语义召回和关键词召回 |
+| **跨编码器重排** | 60% rerank 分 + 40% 融合分 | 提升语义更准确的结果 |
+| **生命周期衰减加权** | `composite = recency + frequency + intrinsic` | 使用 Weibull 新鲜度、访问频率、`importance × confidence` 共同排序 |
 | **长度归一化** | `score *= 1 / (1 + 0.5 * log2(len/anchor))` | 防止长条目凭关键词密度霸占所有查询（锚点：500 字符） |
-| **时间衰减** | `score *= 0.5 + 0.5 * exp(-ageDays / halfLife)` | 旧条目逐渐降权，下限 0.5×（60 天半衰期） |
 | **硬最低分** | 低于阈值直接丢弃 | 移除不相关结果（默认 0.35） |
 | **MMR 多样性** | cosine 相似度 > 0.85 → 降级 | 防止近似重复结果 |
+
+Legacy 回退路径：
+- 当生命周期衰减不可用时，retriever 会回退到旧的 `时效加成 → 重要性加权 → 时间衰减` 路径。
 
 ### 4. 多 Scope 隔离
 
@@ -224,6 +232,7 @@ Query → BM25 FTS ─────┘
 ### 6. 噪声过滤
 
 在自动捕获和工具存储阶段同时生效：
+
 - 过滤 Agent 拒绝回复（"I don't have any information"）
 - 过滤 Meta 问题（"do you remember"）
 - 过滤寒暄（"hi"、"hello"、"HEARTBEAT"）
@@ -235,11 +244,36 @@ Query → BM25 FTS ─────┘
 - 开启会导致大段摘要污染检索质量，建议仅在需要语义搜索历史会话时开启
 - 可配置消息数量（默认 15 条）
 
+如需查看更系统的部署模式、`/new` 验证、Agent 初始化检查和回归矩阵，请参考 `docs/openclaw-integration-playbook.zh-CN.md`。
+
 ### 8. 自动捕获 & 自动回忆
 
 - **Auto-Capture**（`agent_end` hook）: 从对话中提取 preference/fact/decision/entity，去重后存储（每次最多 3 条）
   - 触发词支持 **简体中文 + 繁體中文**（例如：记住/記住、偏好/喜好/喜歡、决定/決定 等）
 - **Auto-Recall**（`before_agent_start` hook）: 注入 `<relevant-memories>` 上下文（最多 3 条）
+
+### 9. 智能记忆提取（v1.1.0）
+
+- **LLM 驱动 6 类别提取**：替代正则触发捕获，智能分类：
+  - **用户记忆**：`profile`（身份属性）、`preferences`（偏好习惯）、`entities`（持续实体）、`events`（事件）
+  - **Agent 记忆**：`cases`（问题-解决方案对）、`patterns`（可复用流程）
+- **L0/L1/L2 分层存储**：L0（一句话索引）→ L1（结构化摘要）→ L2（完整叙述）
+- **两阶段去重**：向量相似度预过滤（≥0.7）→ LLM 语义决策（CREATE/MERGE/SKIP）
+- **类别感知合并**：`profile` 始终合并，`events`/`cases` 仅新增
+
+### 10. 记忆生命周期管理（v1.1.0）
+
+- **Weibull 衰减引擎**：复合分数 = 时效（Weibull）+ 频率（对数饱和）+ 内在价值（importance × confidence）
+- **衰减感知检索**：召回结果会按生命周期衰减重排，而不是只实例化衰减模块
+- **三层晋升系统**：`Peripheral ⟷ Working ⟷ Core`，可配置阈值，并使用真实 recall 计数驱动
+- **重要性调制半衰期**：重要记忆衰减更慢
+- **统一 metadata 写入**：smart extraction、正则 fallback、`memory_store`、迁移、session memory、upgrade 都会写成同一套生命周期元数据
+
+### 11. 旧记忆一键升级（v1.1.0）
+
+- **一条命令升级**：将旧格式记忆转换为新 6 类别 L0/L1/L2 格式
+- **LLM 或无 LLM 模式**：LLM 生成高质量摘要，或简单截取首句（离线可用）
+- **启动自动检测**：插件启动时自动检测旧记忆并在日志提示运行升级命令
 
 ### 不想在对话中“显示长期记忆”？
 
@@ -286,9 +320,105 @@ openclaw config get plugins.entries.memory-lancedb-pro
 ```
 
 建议：
+
 - `plugins.load.paths` 建议优先用**绝对路径**（除非你已确认当前 workspace）。
 - 如果配置里使用 `${JINA_API_KEY}`（或任何 `${...}` 变量），务必确保运行 Gateway 的**服务进程环境**里真的有这些变量（systemd/launchd/docker 通常不会继承你终端的 export）。
 - 修改插件配置后，运行 `openclaw gateway restart` 使其生效。
+
+如果你想看一份更通用的操作手册，覆盖首次接入、检索调优、`/new` session memory 选型和升级后复检，请参考 `docs/openclaw-integration-playbook.zh-CN.md`。
+
+### 我属于哪种使用路径？
+
+先判断你属于哪一类用户，再执行对应步骤。不要把 `migrate`、`upgrade`、`reembed` 混用。
+
+#### 路径 A：第一次用 OpenClaw，或第一次接入记忆插件
+
+1. 安装插件，并把 `plugins.slots.memory` 绑定到 `memory-lancedb-pro`
+2. 先从最简配置开始（`embedding` + 可选 `smartExtraction`）
+3. 执行：
+
+```bash
+openclaw config validate
+openclaw gateway restart
+openclaw plugins info memory-lancedb-pro
+openclaw hooks list --json
+openclaw memory-pro stats
+```
+
+4. 做一次真实烟测：
+   - 写入 1 条记忆
+   - 用 1 个唯一标识符搜索
+   - 用 1 句自然语言搜索
+
+建议：在基础检索稳定前，先不要开启 session memory。
+
+#### 路径 B：已经用了 OpenClaw 一段时间，现在再接入这个插件
+
+1. 保持现有 agents、channels、models 不变
+2. 用**绝对路径**把插件加到 `plugins.load.paths`
+3. 把 memory slot 绑定到 `memory-lancedb-pro`
+4. 明确选择 session summary 方案：
+   - 只用内置
+   - 只用插件
+   - 双写
+5. 验证：
+
+```bash
+openclaw plugins info memory-lancedb-pro
+openclaw hooks list --json
+openclaw memory-pro stats
+```
+
+如果新建的 Agent 连普通文本对话都跑不通，应先修复 Agent 引导问题，再测记忆插件。
+
+#### 路径 C：已经用了旧版 `memory-lancedb-pro`（`docs/CHANGELOG-v1.1.0.md` 之前）
+
+三条命令的边界如下：
+
+- `upgrade`：用于**旧版 `memory-lancedb-pro` 数据升级**
+- `migrate`：只用于从内置 **`memory-lancedb`** 迁移到 Pro
+- `reembed`：只在你明确要从另一个 source DB 重建向量，或更换 embedding 模型后重建向量时使用
+
+推荐安全顺序：
+
+```bash
+# 1) 先备份现有记忆
+openclaw memory-pro export --scope global --output memories-backup.json
+
+# 2) 先检查，不改数据
+openclaw memory-pro upgrade --dry-run
+
+# 3) 正式升级
+openclaw memory-pro upgrade
+
+# 4) 验证升级后的检索
+openclaw memory-pro stats
+openclaw memory-pro search "your known keyword" --scope global --limit 5
+```
+
+如果你手里还有从未迁到 Pro 的内置 `memory-lancedb` 历史数据，再单独执行 `migrate check` / `migrate run`。不要把它和 Pro 的 `upgrade` 当成同一件事。
+
+#### 升级后的可靠性检查
+
+不管你走上面哪条路径，在开始调阈值之前，先至少做完下面这组检查：
+
+```bash
+openclaw config validate
+openclaw gateway restart
+openclaw plugins info memory-lancedb-pro
+openclaw hooks list --json
+openclaw memory-pro stats
+openclaw memory-pro list --scope global --limit 5
+```
+
+然后再验证：
+
+- 1 个唯一标识符搜索命中
+- 1 个自然语言搜索命中
+- 1 轮 `memory_store` → `memory_recall`
+- 如果启用了 session memory，再补 1 轮真实 `/new`
+
+如需了解 v1.1.0 的行为变化和升级背景，请查看 `docs/CHANGELOG-v1.1.0.md`。
 
 ### Jina API Key（Embedding + Rerank）如何填写
 
@@ -297,6 +427,7 @@ openclaw config get plugins.entries.memory-lancedb-pro
 - 如果你选择了其它 rerank provider（如 `siliconflow` / `pinecone`），则 `retrieval.rerankApiKey` 应填写对应提供商的 key。
 
 Key 存储建议：
+
 - 不要把 key 提交到 git。
 - 使用 `${...}` 环境变量没问题，但务必确保运行 Gateway 的**服务进程环境**里真的有该变量（systemd/launchd/docker 往往不会继承你终端的 export）。
 
@@ -428,6 +559,8 @@ openclaw config get plugins.slots.memory
     "rerank": "cross-encoder",
     "rerankApiKey": "${JINA_API_KEY}",
     "rerankModel": "jina-reranker-v3",
+    "rerankEndpoint": "https://api.jina.ai/v1/rerank",
+    "rerankProvider": "jina",
     "candidatePoolSize": 20,
     "recencyHalfLifeDays": 14,
     "recencyWeight": 0.1,
@@ -452,7 +585,15 @@ openclaw config get plugins.slots.memory
   "sessionMemory": {
     "enabled": false,
     "messageCount": 15
-  }
+  },
+  "smartExtraction": true,
+  "llm": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "openai/gpt-oss-120b",
+    "baseURL": "https://api.openai.com/v1"
+  },
+  "extractMinMessages": 4,
+  "extractMaxChars": 8000
 }
 ```
 
@@ -473,12 +614,173 @@ openclaw config get plugins.slots.memory
 
 本插件支持 **任意 OpenAI 兼容的 Embedding API**：
 
-| 提供商 | 模型 | Base URL | 维度 |
-|--------|------|----------|------|
-| **Jina**（推荐） | `jina-embeddings-v5-text-small` | `https://api.jina.ai/v1` | 1024 |
-| **OpenAI** | `text-embedding-3-small` | `https://api.openai.com/v1` | 1536 |
-| **Google Gemini** | `gemini-embedding-001` | `https://generativelanguage.googleapis.com/v1beta/openai/` | 3072 |
-| **Ollama**（本地） | `nomic-embed-text` | `http://localhost:11434/v1` | _与本地模型输出一致_（建议显式设置 `embedding.dimensions`） |
+| 提供商             | 模型                            | Base URL                                                   | 维度                                                        |
+| ------------------ | ------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------- |
+| **Jina**（推荐）   | `jina-embeddings-v5-text-small` | `https://api.jina.ai/v1`                                   | 1024                                                        |
+| **OpenAI**         | `text-embedding-3-small`        | `https://api.openai.com/v1`                                | 1536                                                        |
+| **Google Gemini**  | `gemini-embedding-001`          | `https://generativelanguage.googleapis.com/v1beta/openai/` | 3072                                                        |
+| **Ollama**（本地） | `nomic-embed-text`              | `http://localhost:11434/v1`                                | _与本地模型输出一致_（建议显式设置 `embedding.dimensions`） |
+
+### Rerank 提供商
+
+跨编码器 Rerank 支持多种提供商，通过 `rerankProvider` 配置：
+
+| 提供商                        | `rerankProvider` | Endpoint                                | 示例模型                                            |
+| ----------------------------- | ---------------- | --------------------------------------- | --------------------------------------------------- |
+| **Jina**（默认）              | `jina`           | `https://api.jina.ai/v1/rerank`         | `jina-reranker-v3`                                  |
+| **SiliconFlow**（有免费额度） | `siliconflow`    | `https://api.siliconflow.com/v1/rerank` | `BAAI/bge-reranker-v2-m3`, `Qwen/Qwen3-Reranker-8B` |
+| **Voyage AI**                 | `voyage`         | `https://api.voyageai.com/v1/rerank`    | `rerank-2.5`                                        |
+| **Pinecone**                  | `pinecone`       | `https://api.pinecone.io/rerank`        | `bge-reranker-v2-m3`                                |
+
+说明：
+
+- `voyage` 发送 `{ model, query, documents }` 格式（不含 `top_n`）。
+- Voyage 响应从 `data[].relevance_score` 中解析。
+
+<details>
+<summary><strong>SiliconFlow 配置示例</strong></summary>
+
+```json
+{
+  "retrieval": {
+    "rerank": "cross-encoder",
+    "rerankProvider": "siliconflow",
+    "rerankEndpoint": "https://api.siliconflow.com/v1/rerank",
+    "rerankApiKey": "sk-xxx",
+    "rerankModel": "BAAI/bge-reranker-v2-m3"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Voyage 配置示例</strong></summary>
+
+```json
+{
+  "retrieval": {
+    "rerank": "cross-encoder",
+    "rerankProvider": "voyage",
+    "rerankEndpoint": "https://api.voyageai.com/v1/rerank",
+    "rerankApiKey": "${VOYAGE_API_KEY}",
+    "rerankModel": "rerank-2.5"
+  }
+}
+```
+
+</details>
+
+<details>
+<summary><strong>Pinecone 配置示例</strong></summary>
+
+```json
+{
+  "retrieval": {
+    "rerank": "cross-encoder",
+    "rerankProvider": "pinecone",
+    "rerankEndpoint": "https://api.pinecone.io/rerank",
+    "rerankApiKey": "pcsk_xxx",
+    "rerankModel": "bge-reranker-v2-m3"
+  }
+}
+```
+
+</details>
+
+### 智能提取配置（LLM）— v1.1.0
+
+启用 `smartExtraction`（默认 `true`）后，插件会使用 LLM 智能提取和分类记忆，替代旧版的正则触发。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `smartExtraction` | boolean | `true` | 是否启用 LLM 智能 6 类别提取 |
+| `llm.apiKey` | string | *（默认复用 `embedding.apiKey`）* | LLM 提供商 API Key |
+| `llm.model` | string | `openai/gpt-oss-120b` | LLM 模型名称 |
+| `llm.baseURL` | string | *（默认复用 `embedding.baseURL`）* | LLM API 端点 |
+| `extractMinMessages` | number | `4` | 触发提取所需的最少消息数 |
+| `extractMaxChars` | number | `8000` | 发送给 LLM 提取的最大字符数 |
+
+<details>
+<summary><strong>最简配置（复用 embedding 的 API Key）</strong></summary>
+
+```json
+{
+  "embedding": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "text-embedding-3-small"
+  },
+  "smartExtraction": true
+}
+```
+
+</details>
+
+<details>
+<summary><strong>完整配置（独立 LLM 端点）</strong></summary>
+
+```json
+{
+  "embedding": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "text-embedding-3-small"
+  },
+  "smartExtraction": true,
+  "llm": {
+    "apiKey": "${OPENAI_API_KEY}",
+    "model": "openai/gpt-oss-120b",
+    "baseURL": "https://api.openai.com/v1"
+  },
+  "extractMinMessages": 4,
+  "extractMaxChars": 8000
+}
+```
+
+</details>
+
+<details>
+<summary><strong>禁用智能提取（回退到正则逻辑）</strong></summary>
+
+```json
+{
+  "smartExtraction": false
+}
+```
+
+</details>
+
+---
+
+### 生命周期配置（Decay + Tier）
+
+这些配置控制记忆新鲜度排序与自动层级迁移。
+
+| 字段 | 类型 | 默认值 | 说明 |
+|------|------|--------|------|
+| `decay.recencyHalfLifeDays` | number | `30` | Weibull 时效衰减的基础半衰期 |
+| `decay.frequencyWeight` | number | `0.3` | 访问频率在生命周期复合分数中的权重 |
+| `decay.intrinsicWeight` | number | `0.3` | `importance × confidence` 的权重 |
+| `decay.betaCore` | number | `0.8` | `core` 记忆的 Weibull beta |
+| `decay.betaWorking` | number | `1.0` | `working` 记忆的 Weibull beta |
+| `decay.betaPeripheral` | number | `1.3` | `peripheral` 记忆的 Weibull beta |
+| `tier.coreAccessThreshold` | number | `10` | 晋升到 `core` 所需的最小 recall 次数 |
+| `tier.coreCompositeThreshold` | number | `0.7` | 晋升到 `core` 所需的最小生命周期分数 |
+| `tier.peripheralCompositeThreshold` | number | `0.15` | 低于此分数的 `working` 记忆可能降级 |
+| `tier.peripheralAgeDays` | number | `60` | 陈旧低访问记忆降级的年龄阈值 |
+
+```json
+{
+  "decay": {
+    "recencyHalfLifeDays": 21,
+    "betaCore": 0.7,
+    "betaPeripheral": 1.5
+  },
+  "tier": {
+    "coreAccessThreshold": 8,
+    "peripheralAgeDays": 45
+  }
+}
+```
 
 ---
 
@@ -494,12 +796,13 @@ OpenClaw 会把每个 Agent 的完整会话自动落盘为 JSONL：
 
 - 触发：`command:new`（你在聊天里发送 `/new`）
 - Hook：只投递一个很小的 task.json（毫秒级，不调用 LLM，不阻塞 `/new`）
-- Worker：systemd 常驻进程监听队列，读取 session `.jsonl`，用 Gemini **Map-Reduce** 抽取 0～20 条高信噪比记忆
+- Worker：systemd 常驻进程监听队列，读取 session `.jsonl`，用 Gemini **Map-Reduce** 抽取 0 ～ 20 条高信噪比记忆
 - 写入：通过 `openclaw memory-pro import` 写入 LanceDB Pro（插件内部仍会 embedding + 查重）
 - 中文关键词：每条记忆包含 `Keywords (zh)`，并遵循三要素（实体/动作/症状）。其中“实体关键词”必须从 transcript 原文逐字拷贝（禁止编造项目名）。
 - 通知：可选（可做到即使 0 条也通知）
 
 示例文件：
+
 - `examples/new-session-distill/`
 
 ---
@@ -641,10 +944,13 @@ openclaw memory-pro delete-bulk --scope global [--before 2025-01-01] [--dry-run]
 openclaw memory-pro export [--scope global] [--output memories.json]
 openclaw memory-pro import memories.json [--scope global] [--dry-run]
 
-# 使用新模型重新生成 Embedding
+# 在更换 embedding 模型后，或从另一个 source DB 重建向量
 openclaw memory-pro reembed --source-db /path/to/old-db [--batch-size 32] [--skip-existing]
 
-# 从内置 memory-lancedb 迁移
+# 升级旧记忆为新智能格式（v1.1.0）
+openclaw memory-pro upgrade [--dry-run] [--batch-size 10] [--no-llm] [--limit N] [--scope SCOPE]
+
+# 从内置 memory-lancedb 迁移（不是旧版 memory-lancedb-pro）
 openclaw memory-pro migrate check [--source /path]
 openclaw memory-pro migrate run [--source /path] [--dry-run] [--skip-existing]
 openclaw memory-pro migrate verify [--source /path]
@@ -656,16 +962,25 @@ openclaw memory-pro migrate verify [--source /path]
 
 LanceDB 表 `memories`：
 
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| `id` | string (UUID) | 主键 |
-| `text` | string | 记忆文本（FTS 索引） |
-| `vector` | float[] | Embedding 向量 |
-| `category` | string | `preference` / `fact` / `decision` / `entity` / `other` |
-| `scope` | string | Scope 标识（如 `global`、`agent:main`） |
-| `importance` | float | 重要性分数 0-1 |
-| `timestamp` | int64 | 创建时间戳 (ms) |
-| `metadata` | string (JSON) | 扩展元数据 |
+| 字段         | 类型          | 说明                                                    |
+| ------------ | ------------- | ------------------------------------------------------- |
+| `id`         | string (UUID) | 主键                                                    |
+| `text`       | string        | 记忆文本（FTS 索引）                                    |
+| `vector`     | float[]       | Embedding 向量                                          |
+| `category`   | string        | `preference` / `fact` / `decision` / `entity` / `other` |
+| `scope`      | string        | Scope 标识（如 `global`、`agent:main`）                 |
+| `importance` | float         | 重要性分数 0-1                                          |
+| `timestamp`  | int64         | 创建时间戳 (ms)                                         |
+| `metadata`   | string (JSON) | 扩展元数据                                              |
+
+v1.1.0 常见 `metadata` 字段：
+
+- `l0_abstract`, `l1_overview`, `l2_content`
+- `memory_category`
+- `tier`
+- `access_count`
+- `confidence`
+- `last_accessed_at`
 
 ---
 
@@ -726,10 +1041,10 @@ Config-only changes do NOT need cache clearing.
 
 ## 依赖
 
-| 包 | 用途 |
-|----|------|
-| `@lancedb/lancedb` ≥0.26.2 | 向量数据库（ANN + FTS） |
-| `openai` ≥6.21.0 | OpenAI 兼容 Embedding API 客户端 |
+| 包                          | 用途                             |
+| --------------------------- | -------------------------------- |
+| `@lancedb/lancedb` ≥0.26.2  | 向量数据库（ANN + FTS）          |
+| `openai` ≥6.21.0            | OpenAI 兼容 Embedding API 客户端 |
 | `@sinclair/typebox` 0.34.48 | JSON Schema 类型定义（工具参数） |
 
 ---

@@ -7,6 +7,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import fs from "node:fs/promises";
 import type { MemoryStore, MemoryEntry } from "./store.js";
+import { buildSmartMetadata, stringifySmartMetadata } from "./smart-metadata.js";
 import { loadLanceDB } from "./store.js";
 
 // ============================================================================
@@ -194,11 +195,24 @@ export class MemoryMigrator {
           category: legacy.category,
           scope: legacy.scope || defaultScope, // Use legacy scope or default
           importance: legacy.importance,
-          metadata: JSON.stringify({
-            migratedFrom: "memory-lancedb",
-            originalId: legacy.id,
-            originalCreatedAt: legacy.createdAt,
-          }),
+          metadata: stringifySmartMetadata(
+            buildSmartMetadata(
+              {
+                text: legacy.text,
+                category: legacy.category,
+                importance: legacy.importance,
+                timestamp: legacy.createdAt,
+              },
+              {
+                l0_abstract: legacy.text,
+                l1_overview: `- ${legacy.text}`,
+                l2_content: legacy.text,
+                migratedFrom: "memory-lancedb",
+                originalId: legacy.id,
+                originalCreatedAt: legacy.createdAt,
+              },
+            ),
+          ),
         };
 
         await this.targetStore.store(newEntry);

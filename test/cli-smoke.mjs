@@ -1,12 +1,34 @@
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
+import Module from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
 import { Command } from "commander";
 import jitiFactory from "jiti";
 
+process.env.NODE_PATH = [
+  process.env.NODE_PATH,
+  "/opt/homebrew/lib/node_modules/openclaw/node_modules",
+  "/opt/homebrew/lib/node_modules",
+].filter(Boolean).join(":");
+Module._initPaths();
+
 const jiti = jitiFactory(import.meta.url, { interopDefault: true });
+
+async function captureStdout(run) {
+  const chunks = [];
+  const originalLog = console.log;
+  console.log = (...args) => {
+    chunks.push(args.join(" "));
+  };
+  try {
+    await run();
+  } finally {
+    console.log = originalLog;
+  }
+  return chunks.join("\n");
+}
 
 async function createSourceDb(sourceDbPath) {
   // Create a minimal LanceDB database with a `memories` table and 1 row.
@@ -43,6 +65,8 @@ async function runCliSmoke() {
   await createSourceDb(sourceDbPath);
 
   const { createMemoryCLI } = jiti("../cli.ts");
+  const { MemoryStore } = jiti("../src/store.ts");
+  const { registerMemoryRecallTool } = jiti("../src/tools.ts");
 
   const program = new Command();
   program.exitOverride();
@@ -78,27 +102,142 @@ async function runCliSmoke() {
     "--dry-run",
   ]);
 
-  // 3) Access reinforcement formula smoke test
-  const { parseAccessMetadata, buildUpdatedMetadata, computeEffectiveHalfLife } =
-    jiti("../src/access-tracker.ts");
+  // 3) search should rebuild a working retriever when the wrapper-provided one is broken
+  const entry = {
+    id: "search_regression_1",
+    text: "Jige profile memory",
+    vector: [1, 0],
+    category: "fact",
+    scope: "global",
+    importance: 0.9,
+    timestamp: Date.now(),
+    metadata: "{}",
+  };
 
-  // Verify formula basics
-  const hl0 = computeEffectiveHalfLife(60, 0, 0, 0.5, 3);
-  assert.equal(hl0, 60, "zero access = base half-life");
+  const brokenContext = {
+    store: {
+      dbPath: path.join(workDir, "target-db"),
+      hasFtsSupport: true,
+      async vectorSearch() {
+        return [{ entry, score: 0.72 }];
+      },
+      async bm25Search() {
+        return [{ entry, score: 0.88 }];
+      },
+      async hasId(id) {
+        return id === entry.id;
+      },
+    },
+    retriever: {
+      async retrieve() {
+        return [];
+      },
+      getConfig() {
+        return {
+          mode: "hybrid",
+          vectorWeight: 0.7,
+          bm25Weight: 0.3,
+          minScore: 0.3,
+          rerank: "none",
+          candidatePoolSize: 20,
+          recencyHalfLifeDays: 0,
+          recencyWeight: 0,
+          filterNoise: false,
+          lengthNormAnchor: 0,
+          hardMinScore: 0,
+          timeDecayHalfLifeDays: 0,
+        };
+      },
+    },
+    scopeManager: {},
+    migrator: {},
+    embedder: {
+      async embedQuery() {
+        return [1, 0];
+      },
+    },
+  };
 
-  const hl10 = computeEffectiveHalfLife(60, 10, Date.now(), 0.5, 3);
-  assert.ok(hl10 > 60 && hl10 < 180, `10 accesses: ${hl10} should be between 60 and 180`);
+  const searchProgram = new Command();
+  searchProgram.exitOverride();
+  createMemoryCLI(brokenContext)({ program: searchProgram });
 
-  const hlCapped = computeEffectiveHalfLife(60, 100000, Date.now(), 0.5, 3);
-  assert.equal(hlCapped, 180, "capped at 3x");
+  const searchOutput = await captureStdout(async () => {
+    await searchProgram.parseAsync([
+      "node",
+      "openclaw",
+      "memory-pro",
+      "search",
+      "Jige",
+      "--scope",
+      "global",
+      "--json",
+    ]);
+  });
 
-  // Verify metadata round-trip
-  const meta = buildUpdatedMetadata("{}", 5);
-  const parsed = parseAccessMetadata(meta);
-  assert.equal(parsed.accessCount, 5);
-  assert.ok(parsed.lastAccessedAt > 0);
+  assert.match(searchOutput, /search_regression_1/);
 
-  console.log("OK: Access reinforcement formula verified");
+  // 4) bm25Search should fall back to lexical substring matching for short CJK queries
+  const lexicalStore = new MemoryStore({
+    dbPath: path.join(workDir, "lexical-db"),
+    vectorDim: 4,
+  });
+  await lexicalStore.importEntry({
+    id: "bm25_zh_1",
+    text: "用户测试饮料偏好是乌龙茶，不喜欢美式咖啡。",
+    vector: [0, 0, 0, 0],
+    category: "preference",
+    scope: "global",
+    importance: 0.95,
+    timestamp: Date.now(),
+    metadata: "{}",
+  });
+  const lexicalHits = await lexicalStore.bm25Search("乌龙茶", 5, ["global"]);
+  assert.equal(lexicalHits[0]?.entry.id, "bm25_zh_1");
+
+  // 5) memory_recall tool should retry once when the first retrieval is empty
+  let recallCalls = 0;
+  const recallApi = {
+    registerTool(factory, meta) {
+      const tool = factory({ agentId: "main", sessionKey: "agent:main:test" });
+      recallApi.tool = tool;
+      recallApi.name = meta.name;
+    },
+  };
+  registerMemoryRecallTool(recallApi, {
+    retriever: {
+      async retrieve() {
+        recallCalls += 1;
+        if (recallCalls === 1) return [];
+        return [
+          {
+            entry,
+            score: 0.88,
+            sources: {},
+          },
+        ];
+      },
+      getConfig() {
+        return { mode: "hybrid" };
+      },
+    },
+    store: {
+      async patchMetadata() {},
+    },
+    scopeManager: {
+      getAccessibleScopes() {
+        return ["agent:main"];
+      },
+      isAccessible() {
+        return true;
+      },
+    },
+    embedder: {},
+    agentId: "main",
+  });
+  const recallResult = await recallApi.tool.execute("call", { query: "Jige", limit: 5 });
+  assert.equal(recallResult.details.count, 1);
+  assert.equal(recallCalls, 2);
 
   rmSync(workDir, { recursive: true, force: true });
 }

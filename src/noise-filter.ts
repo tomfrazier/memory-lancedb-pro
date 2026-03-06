@@ -23,6 +23,10 @@ const META_QUESTION_PATTERNS = [
   /\bdid i (tell|mention|say|share)\b/i,
   /\bhave i (told|mentioned|said)\b/i,
   /\bwhat did i (tell|say|mention)\b/i,
+  /如果你知道.+只回复/i,
+  /如果不知道.+只回复\s*none/i,
+  /只回复精确代号/i,
+  /只回复\s*none/i,
 ];
 
 // Session boilerplate
@@ -31,6 +35,13 @@ const BOILERPLATE_PATTERNS = [
   /^fresh session/i,
   /^new session/i,
   /^HEARTBEAT/i,
+];
+
+// Extractor artifacts from validation prompts / synthetic summaries
+const DIAGNOSTIC_ARTIFACT_PATTERNS = [
+  /\bquery\s*->\s*(none|no explicit solution|unknown|not found)\b/i,
+  /\buser asked for\b.*\b(none|no explicit solution|unknown|not found)\b/i,
+  /\bno explicit solution\b/i,
 ];
 
 export interface NoiseFilterOptions {
@@ -61,6 +72,7 @@ export function isNoise(text: string, options: NoiseFilterOptions = {}): boolean
   if (opts.filterDenials && DENIAL_PATTERNS.some(p => p.test(trimmed))) return true;
   if (opts.filterMetaQuestions && META_QUESTION_PATTERNS.some(p => p.test(trimmed))) return true;
   if (opts.filterBoilerplate && BOILERPLATE_PATTERNS.some(p => p.test(trimmed))) return true;
+  if (DIAGNOSTIC_ARTIFACT_PATTERNS.some(p => p.test(trimmed))) return true;
 
   return false;
 }

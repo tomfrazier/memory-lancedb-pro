@@ -4,7 +4,6 @@
  *
  * Pipeline: conversation → LLM extract → candidates → dedup → persist
  *
- * Ported from epro-memory/extractor.ts + deduplicator.ts
  */
 
 import type { MemoryStore, MemorySearchResult } from "./store.js";
@@ -27,6 +26,7 @@ import {
   normalizeCategory,
 } from "./memory-categories.js";
 import { isNoise } from "./noise-filter.js";
+import { buildSmartMetadata, parseSmartMetadata, stringifySmartMetadata } from "./smart-metadata.js";
 
 // ============================================================================
 // Constants
@@ -54,6 +54,13 @@ export interface SmartExtractorConfig {
   log?: (msg: string) => void;
 }
 
+export interface ExtractPersistOptions {
+  /** Target scope for newly created memories. */
+  scope?: string;
+  /** Scopes visible to the current agent for dedup/merge. */
+  scopeFilter?: string[];
+}
+
 export class SmartExtractor {
   private log: (msg: string) => void;
 
@@ -77,8 +84,14 @@ export class SmartExtractor {
   async extractAndPersist(
     conversationText: string,
     sessionKey: string = "unknown",
+    options: ExtractPersistOptions = {},
   ): Promise<ExtractionStats> {
     const stats: ExtractionStats = { created: 0, merged: 0, skipped: 0 };
+    const targetScope = options.scope ?? this.config.defaultScope ?? "global";
+    const scopeFilter =
+      options.scopeFilter && options.scopeFilter.length > 0
+        ? options.scopeFilter
+        : [targetScope];
 
     // Step 1: LLM extraction
     const candidates = await this.extractCandidates(conversationText);
@@ -95,7 +108,13 @@ export class SmartExtractor {
     // Step 2: Process each candidate through dedup pipeline
     for (const candidate of candidates.slice(0, MAX_MEMORIES_PER_EXTRACTION)) {
       try {
-        await this.processCandidate(candidate, sessionKey, stats);
+        await this.processCandidate(
+          candidate,
+          sessionKey,
+          stats,
+          targetScope,
+          scopeFilter,
+        );
       } catch (err) {
         this.log(
           `memory-pro: smart-extractor: failed to process candidate [${candidate.category}]: ${String(err)}`,
@@ -169,10 +188,17 @@ export class SmartExtractor {
     candidate: CandidateMemory,
     sessionKey: string,
     stats: ExtractionStats,
+    targetScope: string,
+    scopeFilter: string[],
   ): Promise<void> {
     // Profile always merges (skip dedup)
     if (ALWAYS_MERGE_CATEGORIES.has(candidate.category)) {
-      await this.handleProfileMerge(candidate, sessionKey);
+      await this.handleProfileMerge(
+        candidate,
+        sessionKey,
+        targetScope,
+        scopeFilter,
+      );
       stats.merged++;
       return;
     }
@@ -182,17 +208,17 @@ export class SmartExtractor {
     const vector = await this.embedder.embed(embeddingText);
     if (!vector || vector.length === 0) {
       this.log("memory-pro: smart-extractor: embedding failed, storing as-is");
-      await this.storeCandidate(candidate, vector || [], sessionKey);
+      await this.storeCandidate(candidate, vector || [], sessionKey, targetScope);
       stats.created++;
       return;
     }
 
     // Dedup pipeline
-    const dedupResult = await this.deduplicate(candidate, vector);
+    const dedupResult = await this.deduplicate(candidate, vector, scopeFilter);
 
     switch (dedupResult.decision) {
       case "create":
-        await this.storeCandidate(candidate, vector, sessionKey);
+        await this.storeCandidate(candidate, vector, sessionKey, targetScope);
         stats.created++;
         break;
 
@@ -201,11 +227,16 @@ export class SmartExtractor {
           dedupResult.matchId &&
           MERGE_SUPPORTED_CATEGORIES.has(candidate.category)
         ) {
-          await this.handleMerge(candidate, dedupResult.matchId);
+          await this.handleMerge(
+            candidate,
+            dedupResult.matchId,
+            scopeFilter,
+            targetScope,
+          );
           stats.merged++;
         } else {
           // Category doesn't support merge → create instead
-          await this.storeCandidate(candidate, vector, sessionKey);
+          await this.storeCandidate(candidate, vector, sessionKey, targetScope);
           stats.created++;
         }
         break;
@@ -225,17 +256,18 @@ export class SmartExtractor {
 
   /**
    * Two-stage dedup: vector similarity search → LLM decision.
-   * Ported from epro-memory/deduplicator.ts
    */
   private async deduplicate(
     candidate: CandidateMemory,
     candidateVector: number[],
+    scopeFilter: string[],
   ): Promise<DedupResult> {
     // Stage 1: Vector pre-filter — find similar memories
     const similar = await this.store.vectorSearch(
       candidateVector,
       5,
       SIMILARITY_THRESHOLD,
+      scopeFilter,
     );
 
     if (similar.length === 0) {
@@ -257,7 +289,7 @@ export class SmartExtractor {
         let metaObj: Record<string, unknown> = {};
         try {
           metaObj = JSON.parse(r.entry.metadata || "{}");
-        } catch {}
+        } catch { }
         const abstract = (metaObj.l0_abstract as string) || r.entry.text;
         const overview = (metaObj.l1_overview as string) || "";
         return `${i + 1}. [${(metaObj.memory_category as string) || r.entry.category}] ${abstract}\n   Overview: ${overview}\n   Score: ${r.score.toFixed(3)}`;
@@ -324,13 +356,20 @@ export class SmartExtractor {
   private async handleProfileMerge(
     candidate: CandidateMemory,
     sessionKey: string,
+    targetScope: string,
+    scopeFilter: string[],
   ): Promise<void> {
     // Find existing profile memory by category
     const embeddingText = `${candidate.abstract} ${candidate.content}`;
     const vector = await this.embedder.embed(embeddingText);
 
     // Search for existing profile memories
-    const existing = await this.store.vectorSearch(vector || [], 1, 0.3);
+    const existing = await this.store.vectorSearch(
+      vector || [],
+      1,
+      0.3,
+      scopeFilter,
+    );
     const profileMatch = existing.find((r) => {
       try {
         const meta = JSON.parse(r.entry.metadata || "{}");
@@ -341,10 +380,15 @@ export class SmartExtractor {
     });
 
     if (profileMatch) {
-      await this.handleMerge(candidate, profileMatch.entry.id);
+      await this.handleMerge(
+        candidate,
+        profileMatch.entry.id,
+        scopeFilter,
+        targetScope,
+      );
     } else {
       // No existing profile — create new
-      await this.storeCandidate(candidate, vector || [], sessionKey);
+      await this.storeCandidate(candidate, vector || [], sessionKey, targetScope);
     }
   }
 
@@ -354,27 +398,20 @@ export class SmartExtractor {
   private async handleMerge(
     candidate: CandidateMemory,
     matchId: string,
+    scopeFilter: string[],
+    targetScope: string,
   ): Promise<void> {
-    // Read existing memory
-    const results = await this.store.vectorSearch(
-      [],
-      1,
-      0,
-    );
-    // We need to get the existing entry by ID — use list then find
-    // Since LanceDB doesn't have a direct getById, use the store's list approach
     let existingAbstract = "";
     let existingOverview = "";
     let existingContent = "";
 
     try {
-      const allEntries = await this.store.list(undefined, undefined, 1000);
-      const existing = allEntries.find((e) => e.id === matchId);
+      const existing = await this.store.getById(matchId, scopeFilter);
       if (existing) {
-        const meta = JSON.parse(existing.metadata || "{}");
-        existingAbstract = (meta.l0_abstract as string) || existing.text;
-        existingOverview = (meta.l1_overview as string) || "";
-        existingContent = (meta.l2_content as string) || existing.text;
+        const meta = parseSmartMetadata(existing.metadata, existing);
+        existingAbstract = meta.l0_abstract || existing.text;
+        existingOverview = meta.l1_overview || "";
+        existingContent = meta.l2_content || existing.text;
       }
     } catch {
       // Fallback: store as new
@@ -384,7 +421,12 @@ export class SmartExtractor {
       const vector = await this.embedder.embed(
         `${candidate.abstract} ${candidate.content}`,
       );
-      await this.storeCandidate(candidate, vector || [], "merge-fallback");
+      await this.storeCandidate(
+        candidate,
+        vector || [],
+        "merge-fallback",
+        targetScope,
+      );
       return;
     }
 
@@ -415,21 +457,27 @@ export class SmartExtractor {
     const newVector = await this.embedder.embed(mergedText);
 
     // Update existing memory via store.update()
-    const metadata = JSON.stringify({
-      l0_abstract: merged.abstract,
-      l1_overview: merged.overview,
-      l2_content: merged.content,
-      memory_category: candidate.category,
-      tier: "working",
-      access_count: 1,
-      confidence: 0.8,
-    });
+    const existing = await this.store.getById(matchId, scopeFilter);
+    const metadata = stringifySmartMetadata(
+      buildSmartMetadata(existing ?? { text: merged.abstract }, {
+        l0_abstract: merged.abstract,
+        l1_overview: merged.overview,
+        l2_content: merged.content,
+        memory_category: candidate.category,
+        tier: "working",
+        confidence: 0.8,
+      }),
+    );
 
-    await this.store.update(matchId, {
-      text: merged.abstract,
-      vector: newVector,
-      metadata,
-    });
+    await this.store.update(
+      matchId,
+      {
+        text: merged.abstract,
+        vector: newVector,
+        metadata,
+      },
+      scopeFilter,
+    );
 
     this.log(
       `memory-pro: smart-extractor: merged [${candidate.category}] into ${matchId.slice(0, 8)}`,
@@ -447,26 +495,35 @@ export class SmartExtractor {
     candidate: CandidateMemory,
     vector: number[],
     sessionKey: string,
+    targetScope: string,
   ): Promise<void> {
     // Map 6-category to existing store categories for backward compatibility
     const storeCategory = this.mapToStoreCategory(candidate.category);
 
-    const metadata = JSON.stringify({
-      l0_abstract: candidate.abstract,
-      l1_overview: candidate.overview,
-      l2_content: candidate.content,
-      memory_category: candidate.category,
-      tier: "working",
-      access_count: 0,
-      confidence: 0.7,
-      source_session: sessionKey,
-    });
+    const metadata = stringifySmartMetadata(
+      buildSmartMetadata(
+        {
+          text: candidate.abstract,
+          category: this.mapToStoreCategory(candidate.category),
+        },
+        {
+          l0_abstract: candidate.abstract,
+          l1_overview: candidate.overview,
+          l2_content: candidate.content,
+          memory_category: candidate.category,
+          tier: "working",
+          access_count: 0,
+          confidence: 0.7,
+          source_session: sessionKey,
+        },
+      ),
+    );
 
     await this.store.store({
       text: candidate.abstract, // L0 used as the searchable text
       vector,
       category: storeCategory,
-      scope: this.config.defaultScope ?? "global",
+      scope: targetScope,
       importance: this.getDefaultImportance(candidate.category),
       metadata,
     });
